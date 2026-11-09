@@ -1,0 +1,32 @@
+# Downloaded by Setup.bat / scripts/setup.ps1 (far too big for git)
+/tools/
+/node_modules/
+
+# Shortcuts that setup creates (they contain machine-specific paths)
+*.lnk
+
+# Test output
+/test/.tmp/
+
+# Videos: exports and test footage are never committed
+*.mp4
+*.mov
+*.mkv
+*.m4v
+*.avi
+*.webm
+*.mts
+*.m2ts
+*.wmv
+
+# Logs and OS/editor clutter
+*.log
+npm-debug.log*
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+.claude/
+*.swp
+*~

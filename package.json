@@ -1,0 +1,23 @@
+{
+  "name": "clipcut",
+  "productName": "ClipCut",
+  "version": "1.0.0",
+  "description": "A Clipchamp-style video cutter for Windows that keeps your footage's native resolution, frame rate and orientation",
+  "keywords": ["video", "editor", "cut", "trim", "join", "ffmpeg", "electron", "lossless", "60fps", "120fps", "nvenc"],
+  "homepage": "https://github.com/reepadam/clipcut#readme",
+  "repository": { "type": "git", "url": "git+https://github.com/reepadam/clipcut.git" },
+  "bugs": { "url": "https://github.com/reepadam/clipcut/issues" },
+  "license": "MIT",
+  "author": "Adam Reep",
+  "private": true,
+  "main": "src/main.js",
+  "engines": { "node": ">=22.12" },
+  "scripts": {
+    "start": "electron .",
+    "postinstall": "node scripts/postinstall.js",
+    "test": "node test/run.js"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1"
+  }
+}

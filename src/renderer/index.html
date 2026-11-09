@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ClipCut</title>
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' file: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <nav id="rail">
+    <div class="logo" title="ClipCut">
+      <svg viewBox="0 0 32 32"><path d="M22 8.5A9.5 9.5 0 1 0 22 23.5" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/><path d="M14 12.5v7l6-3.5z" fill="currentColor"/></svg>
+    </div>
+    <button id="railImport" class="rail-plus" title="Import media" data-icon="plus"></button>
+    <button class="rail-item active" title="Your media"><span data-icon="folder"></span><span>Your media</span></button>
+  </nav>
+
+  <aside id="mediaPanel">
+    <div class="panel-title">Your media</div>
+    <button id="importBtn" class="btn-import"><span data-icon="plus"></span>Import media</button>
+    <div id="mediaGrid"></div>
+    <div id="mediaEmpty">
+      <span data-icon="film"></span>
+      <p>Drag and drop videos here<br>or click <b>Import media</b></p>
+    </div>
+  </aside>
+
+  <main id="main">
+    <header id="topbar">
+      <input id="projectName" value="My video" spellcheck="false" title="Project name (used as the export file name)">
+      <div class="spacer"></div>
+      <button id="helpBtn" class="tb" title="Keyboard shortcuts (?)" data-icon="help"></button>
+      <button id="exportBtn" class="btn-primary"><span data-icon="export"></span>Export</button>
+    </header>
+
+    <section id="preview">
+      <div id="formatChip">16:9</div>
+      <div id="stageWrap">
+        <div id="stage">
+          <video id="vA" preload="auto" playsinline disablepictureinpicture></video>
+          <video id="vB" preload="auto" playsinline disablepictureinpicture></video>
+          <div id="stageEmpty">Add a video to the timeline to preview it here</div>
+        </div>
+      </div>
+      <div id="controls">
+        <div class="ctl-center">
+          <button class="ctl" id="btnStart" title="Go to start (Home)" data-icon="skipStart"></button>
+          <button class="ctl" id="btnBack" title="Back 5 seconds" data-icon="back5"></button>
+          <button class="ctl play" id="btnPlay" title="Play / pause (Space)" data-icon="play"></button>
+          <button class="ctl" id="btnFwd" title="Forward 5 seconds" data-icon="fwd5"></button>
+          <button class="ctl" id="btnEnd" title="Go to end (End)" data-icon="skipEnd"></button>
+        </div>
+        <button class="ctl ctl-right" id="btnFull" title="Full screen" data-icon="fullscreen"></button>
+      </div>
+    </section>
+
+    <section id="timeline">
+      <div id="tlToolbar">
+        <div class="tb-group">
+          <button class="tb" id="btnUndo" title="Undo (Ctrl+Z)" data-icon="undo"></button>
+          <button class="tb" id="btnRedo" title="Redo (Ctrl+Y)" data-icon="redo"></button>
+          <span class="tb-sep"></span>
+          <button class="tb" id="btnSplit" title="Split at playhead (S)" data-icon="scissors"></button>
+          <button class="tb" id="btnDelete" title="Delete selected clip (Delete)" data-icon="trash"></button>
+          <button class="tb" id="btnDup" title="Duplicate selected clip (Ctrl+D)" data-icon="duplicate"></button>
+        </div>
+        <div id="timeDisplay"><b>00:00.00</b> / 00:00.00</div>
+        <div class="tb-group right">
+          <button class="tb" id="btnZoomIn" title="Zoom in (Ctrl+scroll)" data-icon="zoomIn"></button>
+          <button class="tb" id="btnZoomOut" title="Zoom out (Ctrl+scroll)" data-icon="zoomOut"></button>
+          <button class="tb" id="btnFit" title="Fit timeline to window" data-icon="fit"></button>
+        </div>
+      </div>
+      <div id="tlScroll">
+        <div id="tlContent">
+          <canvas id="ruler"></canvas>
+          <div id="track">
+            <div id="trackEmpty">Drag and drop media here</div>
+          </div>
+          <div id="insertMarker"></div>
+          <div id="playhead"><div class="ph-knob"></div></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="modalBack" hidden>
+  <div id="modal"></div>
+</div>
+<div id="dropOverlay" hidden><div>Drop videos to import</div></div>
+<div id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
