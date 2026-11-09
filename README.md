@@ -1,6 +1,6 @@
 <p align="center"><img src="src/renderer/icon.png" width="88" alt=""></p>
 
-<h1 align="center">ClipCut</h1>
+<h1 align="center">FrameSeam</h1>
 
 <p align="center"><b>A Clipchamp-style video cutter for Windows that leaves your footage's resolution, frame rate and orientation exactly as it found them.</b></p>
 
@@ -8,7 +8,7 @@
 
 Open a long recording (or several), cut out the parts you don't want, join what's left, export. 120 fps stays 120 fps, 4K stays 4K, portrait phone video stays portrait. Everything runs on your own PC: no account, no cloud, no cache quietly filling up your drive.
 
-![ClipCut with two clips on the timeline and the middle of the first one cut out](docs/screenshot.png)
+![FrameSeam with two clips on the timeline and the middle of the first one cut out](docs/screenshot.png)
 
 ![Import a video, split it twice, delete the middle piece, export](docs/demo.gif)
 
@@ -39,10 +39,10 @@ The idea, the interface brief and the testing are mine; the code was written by 
 
 Windows 10/11, 64-bit. A GPU is optional.
 
-1. **Get the code.** Click the green **Code** button → **Download ZIP** and unzip it somewhere permanent, or `git clone https://github.com/reepadam/clipcut.git`.
-2. **Double-click `Setup.bat`.** It downloads what the app needs *into the ClipCut folder* (nothing is installed system-wide; npm keeps its usual small cache in `%LocalAppData%\npm-cache`): ffmpeg 9.0.2 from gyan.dev (about 110 MB), Electron through npm (about 160 MB) and, only if you don't already have Node.js 22.12 or newer, a portable Node.js 26 (about 40 MB). The ffmpeg and Node.js downloads are pinned to those exact versions and checked against their published SHA-256 before anything is unpacked. It takes a minute or two and finishes by putting a **ClipCut** shortcut on your desktop.
+1. **Get the code.** Click the green **Code** button → **Download ZIP** and unzip it somewhere permanent, or `git clone https://github.com/reepadam/frameseam.git`.
+2. **Double-click `Setup.bat`.** It downloads what the app needs *into the FrameSeam folder* (nothing is installed system-wide; npm keeps its usual small cache in `%LocalAppData%\npm-cache`): ffmpeg 9.0.2 from gyan.dev (about 110 MB), Electron through npm (about 160 MB) and, only if you don't already have Node.js 22.12 or newer, a portable Node.js 26 (about 40 MB). The ffmpeg and Node.js downloads are pinned to those exact versions and checked against their published SHA-256 before anything is unpacked. It takes a minute or two and finishes by putting a **FrameSeam** shortcut on your desktop.
    SmartScreen may say "Windows protected your PC" because the script isn't signed: choose **More info → Run anyway**.
-3. **Double-click the ClipCut shortcut.**
+3. **Double-click the FrameSeam shortcut.**
 
 To update later, download the new version over the old folder (or `git pull`) and run `Setup.bat` again; it only fetches what's missing.
 
@@ -56,7 +56,7 @@ To update later, download the new version over the old folder (or `git pull`) an
    - Click the middle piece and press **Delete**. The gap closes by itself.
    - Or drag the white edges of a clip to trim its start or end.
 4. **Export.** Pick a name and a location.
-   - **Exact cuts** (default): frame-accurate, re-encoded at near-original quality. Pick the quality level (*High* is a good default; *Visually lossless* makes a bigger file) and the video card, or the CPU; ClipCut remembers the card you chose.
+   - **Exact cuts** (default): frame-accurate, re-encoded at near-original quality. Pick the quality level (*High* is a good default; *Visually lossless* makes a bigger file) and the video card, or the CPU; FrameSeam remembers the card you chose.
    - **Fast & lossless**: no re-encoding at all, done in seconds. Each cut starts at the nearest earlier keyframe, so it can begin up to a couple of seconds early. Only offered when every clip comes from a video with the same format.
    - The file type follows the name you choose: `.mp4` (default), `.mov` or `.mkv`.
 
@@ -83,8 +83,8 @@ To update later, download the new version over the old folder (or `git pull`) an
 - When you join videos with different sizes or frame rates, the export matches the **first** clip on the timeline. The others are scaled to fit, with black bars where the shape differs.
 - 10-bit and HDR sources are exported as 10-bit HEVC with their colour tags (primaries, transfer, matrix) and HDR10 mastering-display / content-light metadata intact, on both the CPU and NVENC paths; nothing is tone-mapped.
 - The preview uses Chromium's video decoders. A format it can't play (ProRes, for example) shows "No preview" but still cuts and exports normally.
-- Press **?** in the app for the shortcut list. Between sessions ClipCut keeps only your video-card choice, plus the small profile folder every Chromium-based app writes (shader and GPU caches, usually under 20 MB), in `%AppData%\ClipCut`. Nothing about your videos is stored.
-- Keep the ClipCut folder out of OneDrive or other synced folders: `node_modules` and `tools` are hundreds of megabytes of files that a sync client will happily upload and occasionally lock.
+- Press **?** in the app for the shortcut list. Between sessions FrameSeam keeps only your video-card choice, plus the small profile folder every Chromium-based app writes (shader and GPU caches, usually under 20 MB), in `%AppData%\FrameSeam`. Nothing about your videos is stored.
+- Keep the FrameSeam folder out of OneDrive or other synced folders: `node_modules` and `tools` are hundreds of megabytes of files that a sync client will happily upload and occasionally lock.
 
 ## How it works
 
@@ -97,8 +97,8 @@ To update later, download the new version over the old folder (or `git pull`) an
 ## Development
 
 ```
-git clone https://github.com/reepadam/clipcut.git
-cd clipcut
+git clone https://github.com/reepadam/frameseam.git
+cd frameseam
 Setup.bat        # or, with Node.js 22.12+ installed, `npm install`; then ffmpeg 6+ (a full build with libx264/libx265) must be on your PATH or in tools\ffmpeg
 npm start
 npm test
@@ -115,12 +115,12 @@ npm test
 
 `npm test` takes about a minute. It checks that imported files are read correctly, that split + delete removes exactly the chosen frames, that every export has the right size, frame rate, codec and an exact frame count, and that cancelling an export leaves no partial file behind. Hardware encoders are tested only if the machine has them.
 
-The app can be driven from a script: set `CLIPCUT_TEST` to a module exporting `(win, ctl) => {}` and `src/main.js` calls it with the window once it's open. `test/ui.js` is an example.
+The app can be driven from a script: set `FRAMESEAM_TEST` to a module exporting `(win, ctl) => {}` and `src/main.js` calls it with the window once it's open. `test/ui.js` is an example.
 
 ## Credits and licenses
 
-- ClipCut is released under the [MIT License](LICENSE), © 2026 Adam Reep.
-- **FFmpeg** is not part of this repository. `Setup.bat` downloads the ["essentials" build from gyan.dev](https://www.gyan.dev/ffmpeg/builds/), which is licensed under the **GPL** because it includes libx264 and libx265. ClipCut runs it as a separate program. See [ffmpeg.org/legal](https://ffmpeg.org/legal.html).
+- FrameSeam is released under the [MIT License](LICENSE), © 2026 Adam Reep.
+- **FFmpeg** is not part of this repository. `Setup.bat` downloads the ["essentials" build from gyan.dev](https://www.gyan.dev/ffmpeg/builds/), which is licensed under the **GPL** because it includes libx264 and libx265. FrameSeam runs it as a separate program. See [ffmpeg.org/legal](https://ffmpeg.org/legal.html).
 - [Electron](https://www.electronjs.org/) is MIT-licensed and downloaded through npm.
-- Clipchamp is a Microsoft product. ClipCut is an independent project that borrows its layout and nothing else.
+- Clipchamp is a Microsoft product. FrameSeam is an independent project that borrows its layout and nothing else.
 - Designed by Adam Reep; built by directing Claude.

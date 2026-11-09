@@ -20,7 +20,7 @@ function createWindow() {
     minWidth: 1000,
     minHeight: 640,
     backgroundColor: '#18171d',
-    title: 'ClipCut',
+    title: 'FrameSeam',
     icon: path.join(__dirname, 'renderer', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#18171d', symbolColor: '#c9c7d4', height: 48 },
@@ -65,7 +65,7 @@ function createWindow() {
     } else if (dirty) {
       const r = dialog.showMessageBoxSync(win, {
         type: 'question', buttons: ['Stay', 'Quit without exporting'], defaultId: 0, cancelId: 0,
-        title: 'Quit ClipCut?', message: "Your edit hasn't been exported yet. Quit anyway?",
+        title: 'Quit FrameSeam?', message: "Your edit hasn't been exported yet. Quit anyway?",
       });
       if (r === 0) e.preventDefault();
     }
@@ -125,15 +125,15 @@ ipcMain.handle('export-cancel', () => ff.cancelExport());
 ipcMain.handle('show-in-folder', (_e, p) => shell.showItemInFolder(p));
 ipcMain.on('set-dirty', (_e, d) => { dirty = !!d; });
 
-app.setName('ClipCut');
-app.setAppUserModelId('ClipCut.VideoEditor');
+app.setName('FrameSeam');
+app.setAppUserModelId('FrameSeam.VideoEditor');
 
 app.whenReady().then(async () => {
   const tc = await ff.checkToolchain();
   if (!tc.ok) {
-    dialog.showErrorBox('ClipCut needs ffmpeg',
-      `ClipCut uses ffmpeg and ffprobe to read and export video, but they could not be started (${tc.error}).\n\n` +
-      'Run Setup.bat in the ClipCut folder to download them, or install ffmpeg and add it to your PATH, then start ClipCut again.');
+    dialog.showErrorBox('FrameSeam needs ffmpeg',
+      `FrameSeam uses ffmpeg and ffprobe to read and export video, but they could not be started (${tc.error}).\n\n` +
+      'Run Setup.bat in the FrameSeam folder to download them, or install ffmpeg and add it to your PATH, then start FrameSeam again.');
     app.quit();
     return;
   }
@@ -141,15 +141,15 @@ app.whenReady().then(async () => {
     dialog.showMessageBoxSync({
       type: 'warning', title: 'ffmpeg', buttons: ['Continue anyway'],
       message: tc.major < 6
-        ? `ffmpeg ${tc.version} is older than ClipCut was tested with (6.0 or newer). Exports may fail. Run Setup.bat to get a current one.`
+        ? `ffmpeg ${tc.version} is older than FrameSeam was tested with (6.0 or newer). Exports may fail. Run Setup.bat to get a current one.`
         : `This ffmpeg (${tc.ffmpeg}) was built without ${!tc.cpu.h264 ? 'libx264' : 'libx265'}, so "Exact cuts" on the CPU won't work. Run Setup.bat to get a full build.`,
     });
   }
   ff.cleanupTemp();
   ff.detectEncoders(); // warm up so the export dialog opens instantly
   createWindow();
-  // Developer hook used by `npm test`: CLIPCUT_TEST=<path to a module exporting (win, ctl) => {}> drives the window.
-  if (process.env.CLIPCUT_TEST) require(path.resolve(process.env.CLIPCUT_TEST))(win, { setDirty: d => { dirty = d; } });
+  // Developer hook used by `npm test`: FRAMESEAM_TEST=<path to a module exporting (win, ctl) => {}> drives the window.
+  if (process.env.FRAMESEAM_TEST) require(path.resolve(process.env.FRAMESEAM_TEST))(win, { setDirty: d => { dirty = d; } });
 });
 
 app.on('window-all-closed', () => app.quit());

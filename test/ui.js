@@ -1,6 +1,6 @@
 'use strict';
-// Drives the real ClipCut window through a scripted edit-and-export session. Loaded by src/main.js when the
-// CLIPCUT_TEST environment variable points at this file; test/run.js sets that up and checks the results.
+// Drives the real FrameSeam window through a scripted edit-and-export session. Loaded by src/main.js when the
+// FRAMESEAM_TEST environment variable points at this file; test/run.js sets that up and checks the results.
 const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');

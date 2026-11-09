@@ -67,7 +67,7 @@ function soundStart(file) {
 // 2. Drive the app
 console.log('Running the app...');
 check(fs.existsSync(ELECTRON), `Electron binary present (${ELECTRON})`);
-const run = spawnSync(ELECTRON, [ROOT], { env: { ...process.env, CLIPCUT_TEST: path.join(__dirname, 'ui.js') }, stdio: 'inherit', timeout: 10 * 60 * 1000 });
+const run = spawnSync(ELECTRON, [ROOT], { env: { ...process.env, FRAMESEAM_TEST: path.join(__dirname, 'ui.js') }, stdio: 'inherit', timeout: 10 * 60 * 1000 });
 check(run.status === 0, `app exited cleanly (code ${run.status})`);
 const resultFile = path.join(TMP, 'result.json');
 check(fs.existsSync(resultFile), 'the harness wrote result.json');

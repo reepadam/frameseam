@@ -11,7 +11,7 @@ const BIN_DIR = path.join(__dirname, '..', 'tools', 'ffmpeg');
 const bundled = name => path.join(BIN_DIR, name + (process.platform === 'win32' ? '.exe' : ''));
 const FFMPEG = fs.existsSync(bundled('ffmpeg')) ? bundled('ffmpeg') : 'ffmpeg';
 const FFPROBE = fs.existsSync(bundled('ffprobe')) ? bundled('ffprobe') : 'ffprobe';
-const TMP_PREFIX = 'clipcut-';
+const TMP_PREFIX = 'frameseam-';
 
 // ---------- toolchain ----------
 
@@ -509,11 +509,11 @@ function isRunning(pid) {
   try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
 }
 
-// Remove temp folders left behind by a ClipCut that was killed mid-export (never those of one still running).
+// Remove temp folders left behind by a FrameSeam that was killed mid-export (never those of one still running).
 function cleanupTemp() {
   try {
     for (const name of fs.readdirSync(os.tmpdir())) {
-      const m = /^clipcut-(\d+)-/.exec(name);
+      const m = /^frameseam-(\d+)-/.exec(name);
       if (!m || isRunning(Number(m[1]))) continue;
       fs.rmSync(path.join(os.tmpdir(), name), { recursive: true, force: true });
     }

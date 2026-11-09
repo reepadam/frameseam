@@ -1,4 +1,4 @@
-# ClipCut setup: downloads everything the app needs into this folder and creates a desktop shortcut.
+# FrameSeam setup: downloads everything the app needs into this folder and creates a desktop shortcut.
 # Nothing is installed system-wide. Safe to run again: it skips anything that's already there.
 #
 #   Double-click Setup.bat, or run:  powershell -ExecutionPolicy Bypass -File scripts\setup.ps1 [-SkipShortcut]
@@ -28,19 +28,19 @@ $root = Split-Path -Parent $PSScriptRoot
 $tools = Join-Path $root 'tools'
 
 if ($root -like '\\*') {
-    Write-Host "ClipCut is on a network path ($root). Copy the folder to a local drive, for example C:\ClipCut, and run Setup.bat from there." -ForegroundColor Red
+    Write-Host "FrameSeam is on a network path ($root). Copy the folder to a local drive, for example C:\FrameSeam, and run Setup.bat from there." -ForegroundColor Red
     exit 1
 }
 
-# Tags a .lnk with the AppUserModelID that src/main.js sets, so pinning the running ClipCut window to the taskbar
-# gives a pin that launches ClipCut (without this, Windows pins plain electron.exe and the pin opens Electron's demo app).
+# Tags a .lnk with the AppUserModelID that src/main.js sets, so pinning the running FrameSeam window to the taskbar
+# gives a pin that launches FrameSeam (without this, Windows pins plain electron.exe and the pin opens Electron's demo app).
 function Set-ShortcutAppId([string]$lnk, [string]$appId) {
-    if (-not ('ClipCut.ShortcutAppId' -as [type])) {
+    if (-not ('FrameSeam.ShortcutAppId' -as [type])) {
         Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
-namespace ClipCut {
+namespace FrameSeam {
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public struct PropertyKey { public Guid fmtid; public uint pid; }
     [StructLayout(LayoutKind.Explicit, Size = 24)]
@@ -74,12 +74,12 @@ namespace ClipCut {
 }
 '@
     }
-    [ClipCut.ShortcutAppId]::Set($lnk, $appId)
+    [FrameSeam.ShortcutAppId]::Set($lnk, $appId)
 }
 
 # Downloads a zip, checks its SHA-256 against the pinned value, unpacks it and returns the folder.
 function Get-Zip($url, $sha256) {
-    $zip = Join-Path $env:TEMP ("clipcut-setup-" + [guid]::NewGuid() + ".zip")
+    $zip = Join-Path $env:TEMP ("frameseam-setup-" + [guid]::NewGuid() + ".zip")
     $dir = "$zip-x"
     try {
         Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
@@ -150,7 +150,7 @@ try {
     Write-Host "Using $((& "$ffDir\ffmpeg.exe" -hide_banner -version | Select-Object -First 1))"
 
     # 3. Electron (the app runtime), via npm. This runs every time: it is a quick no-op when node_modules already
-    #    matches the lock file, and it picks up a changed Electron version after an update of ClipCut.
+    #    matches the lock file, and it picks up a changed Electron version after an update of FrameSeam.
     $electronExe = Join-Path $root 'node_modules\electron\dist\electron.exe'
     if (-not (Test-Path -LiteralPath $electronExe)) { Write-Host 'Installing Electron (about 160 MB)...' }
     Push-Location -LiteralPath $root
@@ -167,25 +167,25 @@ try {
     # 4. Shortcuts (desktop + this folder)
     if (-not $SkipShortcut) {
         $ws = New-Object -ComObject WScript.Shell
-        foreach ($lnk in @((Join-Path $root 'ClipCut.lnk'), (Join-Path ([Environment]::GetFolderPath('Desktop')) 'ClipCut.lnk'))) {
+        foreach ($lnk in @((Join-Path $root 'FrameSeam.lnk'), (Join-Path ([Environment]::GetFolderPath('Desktop')) 'FrameSeam.lnk'))) {
             $s = $ws.CreateShortcut($lnk)
             $s.TargetPath = $electronExe
             $s.Arguments = "`"$root`""
             $s.WorkingDirectory = $root
             $s.IconLocation = (Join-Path $root 'src\renderer\icon.ico') + ',0'
-            $s.Description = 'ClipCut video editor'
+            $s.Description = 'FrameSeam video editor'
             $s.Save()
-            try { Set-ShortcutAppId $lnk 'ClipCut.VideoEditor' }
+            try { Set-ShortcutAppId $lnk 'FrameSeam.VideoEditor' }
             catch { Write-Host "  (could not tag $lnk for taskbar pinning: $($_.Exception.Message))" -ForegroundColor DarkGray }
         }
-        Write-Host 'Created a ClipCut shortcut on your desktop (and one in this folder).'
+        Write-Host 'Created a FrameSeam shortcut on your desktop (and one in this folder).'
     }
 
     Write-Host ''
-    Write-Host 'ClipCut is ready.' -ForegroundColor Green
+    Write-Host 'FrameSeam is ready.' -ForegroundColor Green
 } catch {
     Write-Host ''
     Write-Host "Setup failed: $($_.Exception.Message)" -ForegroundColor Red
-    Write-Host 'Check your internet connection and run Setup.bat again. If it keeps failing, open an issue at https://github.com/reepadam/clipcut/issues' -ForegroundColor Yellow
+    Write-Host 'Check your internet connection and run Setup.bat again. If it keeps failing, open an issue at https://github.com/reepadam/frameseam/issues' -ForegroundColor Yellow
     exit 1
 }

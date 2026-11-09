@@ -1,5 +1,5 @@
 'use strict';
-/* ClipCut editor UI: media library, preview player, single-track magnetic timeline, export dialog. */
+/* FrameSeam editor UI: media library, preview player, single-track magnetic timeline, export dialog. */
 
 const $ = s => document.querySelector(s);
 // `api` is the global the preload script exposes (see preload.js).
@@ -294,7 +294,7 @@ grid.addEventListener('dblclick', e => {
 grid.addEventListener('dragstart', e => {
   const card = e.target.closest('.media-card');
   if (!card) return;
-  e.dataTransfer.setData('application/x-clipcut-media', card.dataset.id);
+  e.dataTransfer.setData('application/x-frameseam-media', card.dataset.id);
   e.dataTransfer.effectAllowed = 'copy';
   const th = card.querySelector('.thumb');
   if (th) e.dataTransfer.setDragImage(th, th.offsetWidth / 2, th.offsetHeight / 2);
@@ -875,7 +875,7 @@ function doTrim(x) {
 }
 
 // ---------------------------------------------------------------- drag & drop (media panel and Explorer)
-const MEDIA_TYPE = 'application/x-clipcut-media';
+const MEDIA_TYPE = 'application/x-frameseam-media';
 const isFileDrag = e => e.dataTransfer && Array.from(e.dataTransfer.types).includes('Files');
 const isMediaDrag = e => e.dataTransfer && Array.from(e.dataTransfer.types).includes(MEDIA_TYPE);
 
