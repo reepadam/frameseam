@@ -2,6 +2,8 @@
 
 <h1 align="center">FrameSeam</h1>
 
+<p align="center"><em>Champion of clips</em></p>
+
 <p align="center"><b>A Clipchamp-style video cutter for Windows that leaves your footage's resolution, frame rate and orientation exactly as it found them.</b></p>
 
 <p align="center">Designed by Adam Reep; built by directing Claude.</p>
