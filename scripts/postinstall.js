@@ -1,6 +1,6 @@
 'use strict';
-// Runs after `npm install`. Recent npm versions (11.20+) no longer run dependencies' own install scripts by default,
-// which leaves the `electron` package without its binary. Fetch it with Electron's own installer if it's missing.
+// Runs after `npm install`. The electron npm package (44.x) no longer downloads its binary while it is being installed,
+// so fetch it with Electron's own installer whenever the binary is missing.
 const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');

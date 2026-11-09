@@ -50,6 +50,19 @@ ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=1280x720:r=24000/1001:d=4', '-c:v', 'li
 // Anamorphic: 1440x1080 pixels with a 4:3 pixel aspect ratio displays as 1920x1080 (DV/HDV-style footage).
 ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=1440x1080:r=25:d=4', '-f', 'lavfi', '-i', 'sine=f=550:d=4', '-vf', 'setsar=4/3',
   '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', m('anamorphic.mp4')]);
+// Audio that starts half a second after the video (as in OBS recordings): the export must keep that offset.
+ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=30:d=4', '-itsoffset', '0.5', '-f', 'lavfi', '-i', 'sine=f=880:d=3.5',
+  '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', m('delayed.mp4')]);
+// Matroska with an audio track half a second longer than the video: the clip must end with the last video frame.
+ffmpeg(['-f', 'lavfi', '-i', 'testsrc2=s=640x360:r=30:d=4', '-f', 'lavfi', '-i', 'sine=f=660:d=4.5',
+  '-map', '0:v', '-map', '1:a', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', m('tail.mkv')]);
+
+// When does the sound start in a file? (seconds; 0 when there is no leading silence)
+function soundStart(file) {
+  const r = spawnSync(FFMPEG, ['-hide_banner', '-i', file, '-af', 'silencedetect=n=-45dB:d=0.1', '-f', 'null', '-'], { encoding: 'utf8' });
+  const first = /silence_start: (-?[\d.]+)/.exec(r.stderr), end = /silence_end: ([\d.]+)/.exec(r.stderr);
+  return first && Number(first[1]) < 0.05 && end ? Number(end[1]) : 0;
+}
 
 // 2. Drive the app
 console.log('Running the app...');
@@ -65,17 +78,20 @@ check(res.errors.length === 0, 'no renderer errors');
 
 // 3. What the app saw
 const media = res.steps.media || [];
-check(media.length === 5, `5 files imported (${media.length})`);
-if (media.length === 5) {
+check(media.length === 7, `7 files imported (${media.length})`);
+if (media.length === 7) {
   check(media[0].fps === 60 && media[1].pix === 'yuv420p10le' && media[1].bitDepth === 10 && media[2].w === 1080 && media[2].h === 1920 &&
     media[3].audio === false && media[4].w === 1920 && media[4].h === 1080 && media[4].bitDepth === 8,
     'probe: 60 fps, 10-bit HEVC, rotated portrait, silent and anamorphic files read correctly');
-  check(media.every(x => x.poster), 'every file got a preview thumbnail');
+  check(near(media[6].dur, 4, 0.02), `probe: MKV length is the video's 4.0 s, not the 4.5 s audio tail (${media[6].dur})`);
+  for (const x of media.filter(x => x.previewError)) console.log(`       no preview for ${x.name} (this PC can't decode it; export still works)`);
+  check(media.every(x => x.poster || x.previewError), 'every file either got a preview thumbnail or reported "no preview"');
+  check(media.filter(x => x.codec === 'h264').every(x => x.poster), 'every H.264 file got a preview thumbnail');
 }
 const clips = res.steps.clips || [];
 check(JSON.stringify(clips.slice(0, 2)) === '[[1,0,2.5],[1,5,20]]', `split + delete removed exactly 2.5-5.0 s (${JSON.stringify(clips.slice(0, 2))})`);
-// 20 s minus the 2.5 s that was deleted, plus 8 + 6 + 4 + 4 s for the other files (frame-aligned, so a hair under).
-check(near(res.steps.total, 39.5, 0.1), `timeline length is 39.5 s (${res.steps.total})`);
+// 20 s minus the 2.5 s that was deleted, plus 8 + 6 + 4 + 4 + 4 + 4 s for the other files (frame-aligned, so a hair under).
+check(near(res.steps.total, 47.5, 0.1), `timeline length is 47.5 s (${res.steps.total})`);
 const enc = res.steps.encoders || {};
 const devices = enc.devices || [];
 console.log(`       hardware encoders: ${devices.length ? devices.map(d => `${d.name} [${Object.keys(d.caps).filter(k => d.caps[k]).join(' ')}]`).join('; ') : 'none, CPU only'}`);
@@ -93,6 +109,11 @@ for (const [name, x] of Object.entries(res.exports)) {
     check(p.frames === expFrames, `${name}: exactly ${expFrames} frames (got ${p.frames})`);
     check(p.codec === (f.hevc ? 'hevc' : 'h264'), `${name}: codec ${p.codec}`);
     if (f.tenBit) check(/10/.test(p.pix), `${name}: stays 10-bit (${p.pix})`);
+    check(x.useGpu ? (x.using && x.using !== 'CPU') : x.using === 'CPU', `${name}: encoded on ${x.using}`);
+    if (name.includes('late-audio')) {
+      const t = soundStart(x.output);
+      check(t > 0.4 && t < 0.65, `${name}: sound still starts 0.5 s after the picture (${t.toFixed(3)} s)`);
+    }
   } else {
     check(p.w === f.streamW && p.h === f.streamH && p.codec === f.codec, `${name}: stream copied unchanged (${p.codec} ${p.w}x${p.h})`);
     check(near(p.fps, f.fps, 0.01), `${name}: ${p.fps} fps timing preserved`);

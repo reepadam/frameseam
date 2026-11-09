@@ -11,6 +11,7 @@ const VIDEO_EXT = ['mp4', 'mov', 'mkv', 'm4v', 'avi', 'webm', 'mts', 'm2ts', 'ts
 
 let win = null;
 let dirty = false;
+let quitting = false;
 
 function createWindow() {
   win = new BrowserWindow({
@@ -42,6 +43,7 @@ function createWindow() {
   });
 
   win.on('close', e => {
+    if (quitting) { e.preventDefault(); return; }
     if (ff.isExporting()) {
       const r = dialog.showMessageBoxSync(win, {
         type: 'warning', buttons: ['Keep exporting', 'Cancel export and quit'], defaultId: 0, cancelId: 0,
@@ -50,9 +52,16 @@ function createWindow() {
       e.preventDefault();
       if (r === 0) return;
       // Stop the export and let it clean up (partial output file, temp folder) before the window goes away.
+      quitting = true;
       dirty = false;
       ff.cancelExport();
-      const poll = setInterval(() => { if (!ff.isExporting()) { clearInterval(poll); win.destroy(); } }, 100);
+      const started = Date.now();
+      const poll = setInterval(() => {
+        if (!ff.isExporting() || Date.now() - started > 10000) {
+          clearInterval(poll);
+          if (!win.isDestroyed()) win.destroy();
+        }
+      }, 100);
     } else if (dirty) {
       const r = dialog.showMessageBoxSync(win, {
         type: 'question', buttons: ['Stay', 'Quit without exporting'], defaultId: 0, cancelId: 0,
@@ -87,6 +96,7 @@ ipcMain.handle('save-dialog', async (_e, defaultPath) => {
       { name: 'MP4 video', extensions: ['mp4'] },
       { name: 'QuickTime video', extensions: ['mov'] },
       { name: 'Matroska video', extensions: ['mkv'] },
+      { name: 'WebM video', extensions: ['webm'] },
     ],
   });
   return r.canceled ? null : r.filePath;
@@ -104,8 +114,8 @@ function validatePlan(plan) {
 ipcMain.handle('export-start', async (_e, plan) => {
   try {
     validatePlan(plan);
-    await ff.exportVideo(plan, p => { if (win && !win.isDestroyed()) win.webContents.send('export-progress', p); });
-    return { ok: true };
+    const result = await ff.exportVideo(plan, p => { if (win && !win.isDestroyed()) win.webContents.send('export-progress', p); });
+    return { ok: true, ...result };
   } catch (err) {
     return { ok: false, cancelled: !!err.cancelled, error: err.message };
   }

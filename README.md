@@ -14,7 +14,7 @@ Open a long recording (or several), cut out the parts you don't want, join what'
 
 ## Why I built it
 
-I trim a lot of long recordings down to the good parts, and Clipchamp's layout is exactly as simple as I want: media on the left, preview in the middle, timeline underneath, split and delete. Three things kept getting in the way:
+I regularly cut long recordings into something shorter: drop the dead stretches, keep what is worth keeping, and sometimes join pieces from several files into one. That job needs two things and nothing else: cuts that land on the exact frame, and an export that leaves the source quality alone. Clipchamp's layout is exactly as simple as that job wants (media on the left, preview in the middle, timeline underneath, split and delete), but three things kept getting in the way:
 
 - **Exports top out at 30 fps.** My 60 and 120 fps footage came out blurred.
 - It kept trying to put every project in OneDrive.
@@ -40,7 +40,7 @@ The idea, the interface brief and the testing are mine; the code was written by 
 Windows 10/11, 64-bit. A GPU is optional.
 
 1. **Get the code.** Click the green **Code** button → **Download ZIP** and unzip it somewhere permanent, or `git clone https://github.com/reepadam/clipcut.git`.
-2. **Double-click `Setup.bat`.** It downloads what the app needs *into the ClipCut folder* (nothing is installed system-wide): ffmpeg 9.0.2 from gyan.dev (about 110 MB), Electron through npm (about 100 MB) and, only if you don't already have Node.js 22.12 or newer, a portable Node.js 26 (about 40 MB). The ffmpeg and Node.js downloads are pinned to those exact versions and checked against their published SHA-256 before anything is unpacked. It takes a minute or two and finishes by putting a **ClipCut** shortcut on your desktop.
+2. **Double-click `Setup.bat`.** It downloads what the app needs *into the ClipCut folder* (nothing is installed system-wide; npm keeps its usual small cache in `%LocalAppData%\npm-cache`): ffmpeg 9.0.2 from gyan.dev (about 110 MB), Electron through npm (about 160 MB) and, only if you don't already have Node.js 22.12 or newer, a portable Node.js 26 (about 40 MB). The ffmpeg and Node.js downloads are pinned to those exact versions and checked against their published SHA-256 before anything is unpacked. It takes a minute or two and finishes by putting a **ClipCut** shortcut on your desktop.
    SmartScreen may say "Windows protected your PC" because the script isn't signed: choose **More info → Run anyway**.
 3. **Double-click the ClipCut shortcut.**
 
@@ -83,14 +83,14 @@ To update later, download the new version over the old folder (or `git pull`) an
 - When you join videos with different sizes or frame rates, the export matches the **first** clip on the timeline. The others are scaled to fit, with black bars where the shape differs.
 - 10-bit and HDR sources are exported as 10-bit HEVC with their colour tags (primaries, transfer, matrix) and HDR10 mastering-display / content-light metadata intact, on both the CPU and NVENC paths; nothing is tone-mapped.
 - The preview uses Chromium's video decoders. A format it can't play (ProRes, for example) shows "No preview" but still cuts and exports normally.
-- Press **?** in the app for the shortcut list. The only thing ClipCut stores between sessions is a few kilobytes of settings (your video-card choice) in `%AppData%\ClipCut`.
+- Press **?** in the app for the shortcut list. Between sessions ClipCut keeps only your video-card choice, plus the small profile folder every Chromium-based app writes (shader and GPU caches, usually under 20 MB), in `%AppData%\ClipCut`. Nothing about your videos is stored.
 - Keep the ClipCut folder out of OneDrive or other synced folders: `node_modules` and `tools` are hundreds of megabytes of files that a sync client will happily upload and occasionally lock.
 
 ## How it works
 
 - An [Electron](https://www.electronjs.org/) app in plain HTML, CSS and JavaScript, no framework. The preview uses two `<video>` elements and swaps between them at cut points, so playback doesn't stutter across a cut.
 - `ffprobe` reads each file's real frame rate (variable-rate phone footage is snapped to the nearest standard rate), rotation, pixel format and colour metadata.
-- **Exact cuts:** each segment is seeked to half a frame before its first frame and trimmed to half a frame before its last, then the segments go through ffmpeg's `concat` filter with an `fps` filter pinned to the native rate, so the output has exactly the frames you saw. The encoder is `h264_nvenc` / `hevc_nvenc`, `_qsv`, `_amf`, or `libx264` / `libx265` on the CPU.
+- **Exact cuts:** each segment is read from half a frame before its first frame to half a frame before its end point (that is, through the middle of its last frame), the audio is kept on the same clock as the picture, and the segments go through ffmpeg's `concat` filter with an `fps` filter pinned to the native rate, so the output has exactly the frames you saw. The encoder is `h264_nvenc` / `hevc_nvenc`, `_qsv`, `_amf`, or `libx264` / `libx265` on the CPU. The file is written as `name.mp4.part` and renamed when it is complete.
 - **Fast & lossless:** `-ss … -t … -c copy` per segment, joined with the `concat` demuxer. No decoding at all.
 - Hardware encoders are detected at startup by attempting a tiny encode with each one, so the picker only ever lists cards that really work on that PC.
 
@@ -99,7 +99,7 @@ To update later, download the new version over the old folder (or `git pull`) an
 ```
 git clone https://github.com/reepadam/clipcut.git
 cd clipcut
-Setup.bat        # or `npm install`, in which case ffmpeg 6+ (a full build with libx264/libx265) must be on your PATH or in tools\ffmpeg
+Setup.bat        # or, with Node.js 22.12+ installed, `npm install`; then ffmpeg 6+ (a full build with libx264/libx265) must be on your PATH or in tools\ffmpeg
 npm start
 npm test
 ```

@@ -83,17 +83,18 @@ function Get-Zip($url, $sha256) {
     $dir = "$zip-x"
     try {
         Invoke-WebRequest -Uri $url -OutFile $zip -UseBasicParsing
-        $actual = (Get-FileHash $zip -Algorithm SHA256).Hash
+        $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
         if ($actual -ne $sha256) { throw "the file's SHA-256 ($actual) is not the expected $sha256; the download is corrupt or the file has changed" }
-        Expand-Archive $zip $dir -Force
+        Expand-Archive -LiteralPath $zip -DestinationPath $dir -Force
         return $dir
     } catch {
-        Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
         throw "Download of $url failed: $($_.Exception.Message)"
     } finally {
-        Remove-Item $zip -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
     }
 }
+# (-LiteralPath everywhere below: a folder name with [brackets] would otherwise be read as a wildcard pattern.)
 
 try {
     New-Item -ItemType Directory -Force $tools | Out-Null
@@ -102,27 +103,33 @@ try {
     $nodeDir = Join-Path $tools 'node'
     $nodeExe = $null
     $npm = $null
-    if (Test-Path "$nodeDir\node.exe") {
+    if (Test-Path -LiteralPath "$nodeDir\node.exe") {
         $nodeExe = "$nodeDir\node.exe"
         $npm = "$nodeDir\npm.cmd"
     } elseif (Get-Command node.exe -ErrorAction SilentlyContinue) {
         $exe = (Get-Command node.exe).Source
         $ver = [version]'0.0'
         try { $ver = [version]((& $exe -v) -replace '^v', '') } catch {}
-        if ($ver -ge [version]'22.12') {   # Electron 44's npm package needs Node 22.12 or newer
-            $nodeExe = $exe
-            $npm = Join-Path (Split-Path $nodeExe) 'npm.cmd'
-            if (-not (Test-Path $npm)) { $npm = (Get-Command npm.cmd).Source }
-        } else {
+        $npmBeside = Join-Path (Split-Path $exe) 'npm.cmd'
+        $npmOnPath = Get-Command npm.cmd -ErrorAction SilentlyContinue
+        if ($ver -lt [version]'22.12') {   # Electron 44's npm package needs Node 22.12 or newer
             Write-Host "The Node.js on this PC ($(& $exe -v)) is too old for Electron, so a portable current one will be downloaded instead."
+        } elseif (Test-Path -LiteralPath $npmBeside) {
+            $nodeExe = $exe
+            $npm = $npmBeside
+        } elseif ($npmOnPath) {
+            $nodeExe = $exe
+            $npm = $npmOnPath.Source
+        } else {
+            Write-Host "The Node.js on this PC ($exe) has no npm with it, so a portable copy will be downloaded instead."
         }
     }
     if (-not $nodeExe) {
         Write-Host "Downloading portable Node.js $NodeVersion (about 40 MB)..."
         $x = Get-Zip $NodeUrl $NodeSha256
-        if (Test-Path $nodeDir) { Remove-Item $nodeDir -Recurse -Force }   # leftovers of an interrupted earlier run
-        Move-Item (Get-ChildItem $x -Directory | Select-Object -First 1).FullName $nodeDir
-        Remove-Item $x -Recurse -Force
+        if (Test-Path -LiteralPath $nodeDir) { Remove-Item -LiteralPath $nodeDir -Recurse -Force }   # leftovers of an interrupted earlier run
+        Move-Item -LiteralPath (Get-ChildItem -LiteralPath $x -Directory | Select-Object -First 1).FullName -Destination $nodeDir
+        Remove-Item -LiteralPath $x -Recurse -Force
         $nodeExe = "$nodeDir\node.exe"
         $npm = "$nodeDir\npm.cmd"
     }
@@ -130,32 +137,32 @@ try {
 
     # 2. ffmpeg + ffprobe (the video engine)
     $ffDir = Join-Path $tools 'ffmpeg'
-    if (-not (Test-Path "$ffDir\ffmpeg.exe") -or -not (Test-Path "$ffDir\ffprobe.exe")) {
+    if (-not (Test-Path -LiteralPath "$ffDir\ffmpeg.exe") -or -not (Test-Path -LiteralPath "$ffDir\ffprobe.exe")) {
         Write-Host "Downloading ffmpeg $FfmpegVersion (about 110 MB)..."
         $x = Get-Zip $FfmpegUrl $FfmpegSha256
-        $exe = Get-ChildItem $x -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+        $exe = Get-ChildItem -LiteralPath $x -Recurse -Filter ffmpeg.exe | Select-Object -First 1
         if (-not $exe) { throw 'The ffmpeg download did not contain ffmpeg.exe.' }
         New-Item -ItemType Directory -Force $ffDir | Out-Null
-        Move-Item (Join-Path $exe.DirectoryName 'ffmpeg.exe') $ffDir -Force
-        Move-Item (Join-Path $exe.DirectoryName 'ffprobe.exe') $ffDir -Force
-        Remove-Item $x -Recurse -Force
+        Move-Item -LiteralPath (Join-Path $exe.DirectoryName 'ffmpeg.exe') -Destination $ffDir -Force
+        Move-Item -LiteralPath (Join-Path $exe.DirectoryName 'ffprobe.exe') -Destination $ffDir -Force
+        Remove-Item -LiteralPath $x -Recurse -Force
     }
     Write-Host "Using $((& "$ffDir\ffmpeg.exe" -hide_banner -version | Select-Object -First 1))"
 
-    # 3. Electron (the app runtime), via npm
+    # 3. Electron (the app runtime), via npm. This runs every time: it is a quick no-op when node_modules already
+    #    matches the lock file, and it picks up a changed Electron version after an update of ClipCut.
     $electronExe = Join-Path $root 'node_modules\electron\dist\electron.exe'
-    if (-not (Test-Path $electronExe)) {
-        Write-Host 'Installing Electron (about 100 MB)...'
-        Push-Location $root
-        try {
-            $env:PATH = "$(Split-Path $nodeExe);$env:PATH"
-            & $npm install --no-fund --no-audit
-            if ($LASTEXITCODE) { throw "npm install failed with exit code $LASTEXITCODE" }
-            # Recent npm versions skip dependencies' install scripts, which leaves Electron without its binary.
-            if (-not (Test-Path $electronExe)) { & $nodeExe (Join-Path $root 'node_modules\electron\install.js') }
-            if (-not (Test-Path $electronExe)) { throw 'Electron did not download correctly. Delete the node_modules folder and run Setup.bat again.' }
-        } finally { Pop-Location }
-    }
+    if (-not (Test-Path -LiteralPath $electronExe)) { Write-Host 'Installing Electron (about 160 MB)...' }
+    Push-Location -LiteralPath $root
+    try {
+        $env:PATH = "$(Split-Path $nodeExe);$env:PATH"
+        $env:electron_config_cache = Join-Path $tools 'electron-cache'   # npm's copy of the Electron download stays in this folder too
+        & $npm install --no-fund --no-audit
+        if ($LASTEXITCODE) { throw "npm install failed with exit code $LASTEXITCODE" }
+        # The electron package no longer fetches its binary during npm install; scripts/postinstall.js does that, and this is the safety net.
+        if (-not (Test-Path -LiteralPath $electronExe)) { & $nodeExe (Join-Path $root 'node_modules\electron\install.js') }
+        if (-not (Test-Path -LiteralPath $electronExe)) { throw 'Electron did not download correctly. Delete the node_modules folder and run Setup.bat again.' }
+    } finally { Pop-Location }
 
     # 4. Shortcuts (desktop + this folder)
     if (-not $SkipShortcut) {

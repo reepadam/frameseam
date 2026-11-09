@@ -25,13 +25,16 @@ function checkToolchain() {
         if (err) return resolve({ ok: false, ffmpeg: FFMPEG, error: `ffmpeg ${why(err)}` });
         const first = String(stdout).split(/\r?\n/)[0] || '';
         const m = /^ffmpeg version n?(\d+)\./i.exec(first);
+        // Git snapshot builds ("2024-03-14-git-...", "N-114172-g...") don't put the release number in the first line, but
+        // libavcodec's major version maps to it (60 = ffmpeg 6, 61 = 7, 62 = 8, 63 = 9).
+        const lavc = /^libavcodec\s+(\d+)\./m.exec(String(stdout));
+        const major = m ? Number(m[1]) : lavc ? Number(lavc[1]) - 54 : 99;
         execFile(FFPROBE, ['-version'], { windowsHide: true }, err2 => {
           if (err2) return resolve({ ok: false, ffmpeg: FFMPEG, error: `ffprobe ${why(err2)}` });
           // The CPU encoders are optional ffmpeg components; a build without them can still do lossless exports.
           execFile(FFMPEG, ['-hide_banner', '-encoders'], { windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (_e3, list) => {
             const has = name => new RegExp(`\\b${name}\\b`).test(String(list || ''));
-            // Unparseable versions (git master builds) are treated as current.
-            resolve({ ok: true, ffmpeg: FFMPEG, version: first.replace(/^ffmpeg version /, '').split(' ')[0], major: m ? Number(m[1]) : 99,
+            resolve({ ok: true, ffmpeg: FFMPEG, version: first.replace(/^ffmpeg version /, '').split(' ')[0], major,
               cpu: { h264: has('libx264'), hevc: has('libx265') } });
           });
         });
@@ -105,8 +108,11 @@ function probe(file) {
 
         const { fps, fpsStr } = pickFrameRate(v);
         if (!(v.width > 0) || !(v.height > 0)) return reject(new Error('Could not read the video size'));
-        // Frame-aligned length: a container's duration usually includes an audio tail that has no video frame.
-        const rawDuration = Number(v.duration) || Number(j.format && j.format.duration) || 0;
+        // Frame-aligned length of the VIDEO stream. MP4 reports it per stream; Matroska/WebM only in a per-track
+        // DURATION tag ("00:00:08.000000000"); the container's duration (usually the longer audio) is the last resort.
+        const tag = /^(\d+):(\d+):(\d+(?:\.\d+)?)$/.exec((v.tags && (v.tags.DURATION || v.tags['DURATION-eng'])) || '');
+        const tagDuration = tag ? Number(tag[1]) * 3600 + Number(tag[2]) * 60 + Number(tag[3]) : 0;
+        const rawDuration = Number(v.duration) || tagDuration || Number(j.format && j.format.duration) || 0;
         const duration = Math.floor(rawDuration * fps + 1e-3) / fps;
         if (!(duration > 0)) return reject(new Error('Could not read the video length'));
         const clean = x => (x && x !== 'unknown' ? x : null);
@@ -118,6 +124,7 @@ function probe(file) {
         resolve({
           duration,
           rawDuration,
+          videoStart: Math.max(0, Number(v.start_time) || 0),
           width: v.width,
           height: v.height,
           displayWidth: dw,
@@ -316,7 +323,7 @@ function colorArgs(info) {
 
 const isMp4Like = out => /\.(mp4|mov|m4v)$/i.test(out);
 
-let current = null; // { proc, cancelled, touched }  (touched = ffmpeg has been started on the output file itself)
+let current = null; // { proc, cancelled } while an export runs
 
 function cancelledError() {
   const e = new Error('Export cancelled');
@@ -352,7 +359,7 @@ function runFfmpeg(args, onProgressLine) {
 }
 
 // Re-encode with frame-accurate cuts. The output keeps the first clip's resolution, frame rate and orientation.
-async function exportExact(plan, tmp, onProgress) {
+async function exportExact(plan, tmp, onProgress, target, fmtArgs, using) {
   const segs = plan.segments;
   const first = segs[0].info;
   const t = targetFor(first);
@@ -362,7 +369,8 @@ async function exportExact(plan, tmp, onProgress) {
   const pix = pixFmtFor(t, gpu);
   const anyAudio = segs.some(s => s.info.hasAudio);
   const sr = (segs.find(s => s.info.hasAudio) || { info: {} }).info.sampleRate || 48000;
-  onProgress({ percent: 0, speed: '', using: device ? device.name : 'CPU' });
+  using.name = device ? device.name : 'CPU';
+  onProgress({ percent: 0, speed: '', using: using.name });
 
   const args = ['-hide_banner', '-nostdin', '-y', '-loglevel', 'error', '-progress', 'pipe:1', '-nostats'];
   const graph = [];
@@ -385,9 +393,13 @@ async function exportExact(plan, tmp, onProgress) {
       `pad=${t.width}:${t.height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=${fpsStr},format=${pix}[v${i}]`);
     if (anyAudio) {
       if (s.info.hasAudio) {
-        // The half-frame early start applies to the audio too; trim it off so sound and picture line up at every join.
-        const skip = ss > 0 ? `atrim=start=${half.toFixed(6)},` : '';
-        graph.push(`${aIn}${skip}asetpts=PTS-STARTPTS,aresample=${sr},aformat=sample_fmts=fltp:channel_layouts=stereo,` +
+        // Keep the audio on the same clock as the picture rather than rebasing it to its own first sample (that would
+        // slide a late-starting audio track, as in OBS recordings, earlier). After a seek ffmpeg has put the seek point
+        // at t=0 and the first wanted frame at t=half, so drop that half frame of audio; without a seek, shift by the
+        // video's own start time. aresample's first_pts=0 then pads silence if the audio really starts after the picture.
+        const shift = ss > 0 ? half : (s.info.videoStart || 0);
+        const align = shift > 0 ? `atrim=start=${shift.toFixed(6)},asetpts=PTS-${shift.toFixed(6)}/TB,` : 'asetpts=PTS,';
+        graph.push(`${aIn}${align}aresample=${sr}:async=1:first_pts=0,aformat=sample_fmts=fltp:channel_layouts=stereo,` +
           `apad=whole_dur=${dur},atrim=0:${dur}[a${i}]`);
       } else {
         graph.push(`anullsrc=r=${sr}:cl=stereo,atrim=0:${dur},aformat=sample_fmts=fltp:channel_layouts=stereo[a${i}]`);
@@ -405,11 +417,10 @@ async function exportExact(plan, tmp, onProgress) {
   if (anyAudio) args.push('-map', '[aout]', '-c:a', 'aac', '-b:a', '320k');
   args.push(...videoEncoderArgs(t, plan.quality, gpu, device ? device.index : null), ...colorArgs(first), '-max_muxing_queue_size', '9999');
   if (isMp4Like(plan.output)) args.push('-movflags', '+faststart');
-  args.push(plan.output);
+  args.push(...fmtArgs, target);
 
   const total = segs.reduce((a, s) => a + (s.out - s.in), 0);
   let speed = '';
-  current.touched = true;
   await runFfmpeg(args, line => {
     const [k, v] = line.split('=');
     if (k === 'speed') speed = v;
@@ -421,7 +432,7 @@ async function exportExact(plan, tmp, onProgress) {
 }
 
 // Lossless stream copy. No re-encoding, but each cut snaps back to the previous keyframe.
-async function exportFast(plan, tmp, onProgress) {
+async function exportFast(plan, tmp, onProgress, target, fmtArgs) {
   const segs = plan.segments;
   const total = segs.reduce((a, s) => a + (s.out - s.in), 0);
   let done = 0;
@@ -447,27 +458,37 @@ async function exportFast(plan, tmp, onProgress) {
     '-map', '0:v', '-map', '0:a?', '-c', 'copy'];
   if (segs[0].info.vcodec === 'hevc' && isMp4Like(plan.output)) args.push('-tag:v', 'hvc1');
   if (isMp4Like(plan.output)) args.push('-movflags', '+faststart');
-  args.push(plan.output);
-  current.touched = true;
+  args.push(...fmtArgs, target);
   await runFfmpeg(args);
 }
 
+// Output containers ffmpeg can't infer from a ".part" file name, so they are passed explicitly.
+const FORMATS = { mp4: 'mp4', m4v: 'mp4', mov: 'mov', mkv: 'matroska', webm: 'webm' };
+
+// Resolves to { using } = the encoder that did the work ('copy' for Fast mode).
 async function exportVideo(plan, onProgress) {
   if (current) throw new Error('An export is already running');
   const outNorm = path.resolve(plan.output).toLowerCase();
   if (plan.segments.some(s => path.resolve(s.path).toLowerCase() === outNorm)) {
     throw new Error("Can't overwrite one of the source videos. Choose a different file name.");
   }
-  current = { proc: null, cancelled: false, touched: false };
   // The folder name carries our process id so cleanupTemp() can tell a live export from a crashed one.
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), `${TMP_PREFIX}${process.pid}-`));
+  current = { proc: null, cancelled: false };
+  // Write to "<name>.part" and rename at the end: a failed or cancelled export never damages a file that was already
+  // there, and a finished file never appears half-written.
+  const fmt = FORMATS[path.extname(plan.output).slice(1).toLowerCase()];
+  const target = fmt ? plan.output + '.part' : plan.output;
+  const fmtArgs = fmt ? ['-f', fmt] : [];
+  const using = { name: 'CPU' };
   try {
-    if (plan.mode === 'fast') await exportFast(plan, tmp, onProgress);
-    else await exportExact(plan, tmp, onProgress);
+    if (plan.mode === 'fast') await exportFast(plan, tmp, onProgress, target, fmtArgs);
+    else await exportExact(plan, tmp, onProgress, target, fmtArgs, using);
+    if (target !== plan.output) fs.renameSync(target, plan.output);
     onProgress({ percent: 100, speed: '' });
+    return { using: plan.mode === 'fast' ? 'copy' : using.name };
   } catch (e) {
-    // A failed or cancelled export must not leave a broken file behind, but a file ffmpeg never touched is left alone.
-    if (current.touched) { try { fs.rmSync(plan.output, { force: true }); } catch { /* ignore */ } }
+    if (target !== plan.output) { try { fs.rmSync(target, { force: true }); } catch { /* ignore */ } }
     throw e;
   } finally {
     current = null;

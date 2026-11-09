@@ -946,8 +946,9 @@ document.addEventListener('drop', () => {
 // ---------------------------------------------------------------- export
 let exportUI = null;
 
+// Same rule as targetFor() in src/ffmpeg.js, so the dialog describes what the export will really do.
 function targetFor(info) {
-  const tenBit = /10|12/.test(info.pixFmt || '');
+  const tenBit = (info.bitDepth || 8) > 8;
   return { family: info.vcodec === 'hevc' || tenBit ? 'hevc' : 'h264', tenBit };
 }
 
@@ -964,12 +965,17 @@ function fastCompat(L) {
   return null;
 }
 
+let exportOpening = false;
 async function openExport() {
   if (!state.clips.length) return toast('Add a video to the timeline first');
+  if (exportOpening || modalOpen()) return;
   pause();
+  exportOpening = true;
+  const enc = await api.encoders(); // instant after the first call; the timeline is only read once this is back
+  exportOpening = false;
+  if (!state.clips.length || modalOpen()) return;
   const L = layout();
   const info = L[0].media.info;
-  const enc = await api.encoders();
   const t = targetFor(info);
   const codecLabel = `${t.family === 'hevc' ? 'HEVC' : 'H.264'}${t.tenBit ? ' 10-bit' : ''}`;
   // A card is only offered if it can encode what this video needs (8-bit H.264, 8-bit HEVC or 10-bit HEVC).
@@ -1058,7 +1064,11 @@ async function openExport() {
   $('#expCancel').onclick = closeModal;
   $('#expGo').onclick = async () => {
     const name = ($('#projectName').value.trim() || 'My video').replace(/[\\/:*?"<>|]+/g, '_');
-    const out = await api.saveDialog(`${dirname(L[0].media.path)}\\${name}.mp4`);
+    // Fast mode keeps the original codecs, so suggest a container that can hold them: the source's own when it is a
+    // common one, otherwise MKV, which takes anything.
+    const srcExt = (L[0].media.path.match(/\.(\w+)$/) || [, ''])[1].toLowerCase();
+    const ext = opts.mode !== 'fast' ? 'mp4' : /^(mp4|mov|m4v|mkv|webm)$/.test(srcExt) ? srcExt : 'mkv';
+    const out = await api.saveDialog(`${dirname(L[0].media.path)}\\${name}.${ext}`);
     if (!out) return;
     runExport({
       ...opts,
@@ -1099,7 +1109,8 @@ async function runExport(plan) {
     modal.innerHTML = `
       <h2>Export failed</h2>
       <div class="err-box">${esc(res.error)}</div>
-      <p class="note">${plan.mode === 'exact' && plan.useGpu ? 'Try again with a different video card, or with the CPU.' : ''}</p>
+      <p class="note">${plan.mode === 'fast' ? 'Fast & lossless keeps the original codecs; if the chosen file type can\'t hold them, saving as .mkv works for any of them.'
+    : plan.useGpu ? 'Try again with a different video card, or with the CPU.' : ''}</p>
       <div class="modal-foot"><button class="btn-primary" id="expDone">Close</button></div>`;
     $('#expDone').onclick = closeModal;
   }
